@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Agendar - Florek Cuts</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background-color: #f4f7f6; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px;}
+        .card { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 8px 20px rgba(0,0,0,0.1); width: 100%; max-width: 450px; }
+        h2 { text-align: center; color: #2c3e50; margin-bottom: 25px; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; font-weight: bold; margin-bottom: 8px; color: #555; }
+        
+        input:not([type="checkbox"]), select { width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; font-size: 15px; }
+        
+        .btn-submit { width: 100%; background-color: #2c3e50; color: white; padding: 14px; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.3s; margin-top: 20px; }
+        .btn-submit:hover { background-color: #1a252f; }
+        .alerta-erro { background-color: #f8d7da; color: #721c24; padding: 12px; border-radius: 6px; margin-bottom: 20px; text-align: center; border: 1px solid #f5c6cb; }
+        .alerta-sucesso { background-color: #d4edda; color: #155724; padding: 12px; border-radius: 6px; margin-bottom: 20px; text-align: center; border: 1px solid #c3e6cb; }
+        
+        .servicos-box { background: #f8f9fa; padding: 15px; border-radius: 6px; border: 1px solid #e2e8f0; }
+        .servicos-box label { font-weight: normal; margin-bottom: 8px; cursor: pointer; display: flex; align-items: center; }
+        .servicos-box input[type="checkbox"] { width: 18px; height: 18px; margin-right: 10px; cursor: pointer; }
+
+        /* MÁGICA DA GRADE DE HORÁRIOS (ESTILO FOTO) */
+        .grade-horarios { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 10px; }
+        .btn-hora { background: white; border: 1px solid #3498db; color: #3498db; padding: 10px; border-radius: 5px; font-size: 14px; font-weight: bold; cursor: pointer; transition: 0.2s; text-align: center; }
+        .btn-hora:hover { background: #e1f0fa; }
+        .btn-hora.selecionado { background: #3498db; color: white; border-color: #2980b9; }
+        .aviso-grade { color: #7f8c8d; font-style: italic; font-size: 14px; text-align: center; padding: 10px; grid-column: span 4; }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <h2>✂️ Reserve seu Horário</h2>
+
+        <div th:if="${erro}" class="alerta-erro" th:text="${erro}"></div>
+        <div th:if="${sucesso}" class="alerta-sucesso" th:text="${sucesso}"></div>
+
+        <form th:action="@{/confirmar-agendamento}" th:object="${agendamento}" method="post">
+            <div class="form-group">
+                <label>Seu Nome:</label>
+                <input type="text" th:field="*{nomeCliente}" placeholder="Ex: João Silva" required />
+            </div>
+
+            <div class="form-group">
+                <label>Telefone (WhatsApp):</label>
+                <input type="tel" th:field="*{telefone}" placeholder="(00) 00000-0000" required />
+            </div>
+
+            <div class="form-group">
+                <label>Serviços Desejados:</label>
+                <div class="servicos-box">
+                    <label><input type="checkbox" th:field="*{servicoCorte}"> ✂️ Corte de Cabelo (30 min) - <b>R$ 35,00</b></label>
+                    <label><input type="checkbox" th:field="*{servicoBarba}"> 🧔 Barba (+15 min) - <b>R$ 25,00</b></label>
+                    <label style="margin-bottom: 0;"><input type="checkbox" th:field="*{servicoSobrancelha}"> 📏 Sobrancelha (+15 min) - <b>R$ 15,00</b></label>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Escolha uma Data:</label>
+                <input type="date" th:field="*{data}" id="campo-data" required />
+            </div>
+
+            <div class="form-group">
+                <label>Horários Disponíveis:</label>
+                <input type="hidden" th:field="*{hora}" id="hora-escondida" required />
+                
+                <div class="grade-horarios" id="container-horarios">
+                    <div class="aviso-grade">Selecione uma data acima para ver as vagas.</div>
+                </div>
+            </div>
+
+            <button type="submit" class="btn-submit">Confirmar Agendamento</button>
+        </form>
+    </div>
+
+    <script>
+        document.getElementById('campo-data').addEventListener('change', function() {
+            var dataSelecionada = this.value;
+            var container = document.getElementById('container-horarios');
+            var inputHora = document.getElementById('hora-escondida');
+            
+            // Limpa o valor anterior se trocar de dia
+            inputHora.value = "";
+            container.innerHTML = '<div class="aviso-grade">Buscando vagas...</div>';
+            
+            fetch('/horarios-disponiveis?data=' + dataSelecionada)
+                .then(response => response.json())
+                .then(horarios => {
+                    container.innerHTML = ''; // Limpa o carregando
+                    
+                    if(horarios.length === 0) {
+                        container.innerHTML = '<div class="aviso-grade">Sem horários livres neste dia.</div>';
+                    } else {
+                        horarios.forEach(hora => {
+                            var horaFormatada = hora.substring(0, 5); // Ex: 10:00
+                            
+                            // Cria o botão HTML via Javascript
+                            var btn = document.createElement('button');
+                            btn.type = 'button';
+                            btn.className = 'btn-hora';
+                            btn.innerText = horaFormatada;
+                            
+                            // Ação ao clicar no botão
+                            btn.onclick = function() {
+                                // Tira a cor de seleção de todos os botões
+                                document.querySelectorAll('.btn-hora').forEach(b => b.classList.remove('selecionado'));
+                                // Adiciona a cor azul escuro só no clicado
+                                btn.classList.add('selecionado');
+                                // Salva o valor no input escondido para enviar pro Java
+                                inputHora.value = horaFormatada;
+                            };
+                            
+                            container.appendChild(btn);
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('Erro:', error);
+                    container.innerHTML = '<div class="aviso-grade" style="color:red;">Erro na busca.</div>';
+                });
+        });
+    </script>
+</body>
+</html>
